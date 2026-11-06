@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>생산계획 CAPA 사전 검토</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 위에 KPI 두 칸 → 탭(화면 1 / 화면 2 / 시트) → 작업 영역. 공장 관제판 같은 차분한 강철색 + 신호색 */
+:root {
+  --bg: #f3f5f7;
+  --panel: #ffffff;
+  --ink: #18222d;
+  --muted: #5d6b79;
+  --line: #d9e0e6;
+  --accent: #1d5c8c;
+  --accent-soft: #e3eef7;
+  --ok: #1f7a4d; --ok-soft: #e2f3ea;
+  --bad: #b3361f; --bad-soft: #fbe7e2;
+  --warn: #9a6a00; --warn-soft: #fbf0d6;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11171d; --panel: #18212a; --ink: #e6ecf1; --muted: #98a6b3; --line: #2b3742;
+    --accent: #6fb0e0; --accent-soft: #1b3346;
+    --ok: #5cc98f; --ok-soft: #173327; --bad: #f08a72; --bad-soft: #3a1f19; --warn: #e6b950; --warn-soft: #362c14;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11171d; --panel: #18212a; --ink: #e6ecf1; --muted: #98a6b3; --line: #2b3742;
+  --accent: #6fb0e0; --accent-soft: #1b3346;
+  --ok: #5cc98f; --ok-soft: #173327; --bad: #f08a72; --bad-soft: #3a1f19; --warn: #e6b950; --warn-soft: #362c14;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; }
+h1 { font-size: 22px; margin: 0; font-weight: 700; text-wrap: balance; }
+.sub { color: var(--muted); margin: 2px 0 0; font-size: 14px; }
+.badge { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--panel); }
+.badge.live { color: var(--ok); border-color: var(--ok); }
+.badge.preview { color: var(--warn); border-color: var(--warn); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#planTable td { white-space: nowrap; }  #planTable th, #planTable td { padding: 8px 6px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; border-left: 4px solid var(--accent); }
+.kpi .label { font-size: 13px; color: var(--muted); font-weight: 600; }
+.kpi .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi .value small { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.kpi .ref { font-size: 13px; color: var(--muted); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tab { appearance: none; border: 0; background: none; font: inherit; color: var(--muted); padding: 10px 14px; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 600; }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tab:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.grid2 { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.panel h2 { font-size: 16px; margin: 0; }
+.panel h3 { font-size: 14px; margin: 0; color: var(--muted); font-weight: 600; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+form { display: grid; gap: 10px; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 13px; font-weight: 600; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; }
+textarea { min-height: 64px; resize: vertical; }
+button.primary, button.secondary { font: inherit; font-weight: 600; border-radius: 6px; padding: 9px 14px; cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+:root[data-theme="dark"] button.primary { color: #0d1720; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #0d1720; } }
+button.secondary { background: var(--panel); color: var(--accent); border: 1px solid var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.msg { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--ok-soft); color: var(--ok); }
+.msg.err { background: var(--bad-soft); color: var(--bad); }
+.msg[hidden] { display: none; }
+.planinfo { font-size: 13px; color: var(--muted); background: var(--accent-soft); border-radius: 6px; padding: 8px 10px; }
+
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.wait { background: var(--warn-soft); color: var(--warn); }
+.pill.done { background: var(--accent-soft); color: var(--accent); }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+tr.sel td { background: var(--accent-soft); }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--accent-soft); }
+
+.depts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (max-width: 520px) { .depts { grid-template-columns: 1fr 1fr; } }
+.dept { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; font-size: 13px; }
+.dept.in { border-color: var(--ok); }
+.dept.out { border-style: dashed; }
+.dept b { font-size: 13px; }
+.dept .pill { justify-self: start; }
+
+.calc { display: grid; gap: 6px; font-size: 14px; }
+.calc .line { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.calc .line span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.calc .line.total { border-bottom: 0; font-size: 16px; }
+.verdict { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; border-radius: 8px; background: var(--bg); }
+.verdict .big { font-size: 20px; font-weight: 700; }
+.verdict.ok { background: var(--ok-soft); color: var(--ok); }
+.verdict.bad { background: var(--bad-soft); color: var(--bad); }
+.verdict.wait { background: var(--warn-soft); color: var(--warn); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 620px) { .split { grid-template-columns: 1fr; } }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; align-content: start; }
+.empty { color: var(--muted); font-size: 14px; padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: 8px; }
+.view[hidden] { display: none; }
+.clip { max-width: 240px; min-width: 140px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.clip.open { display: block; -webkit-line-clamp: unset; max-width: 360px; }
+.clip-more { display: block; font-size: 12px; color: var(--accent); font-weight: 600; cursor: pointer; }
+#sheetPlans td { white-space: nowrap; } #sheetPlans td.tdwrap { white-space: normal; }
+details.fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: "접기 ▴"; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+details.fold:not([open]) > summary::after { content: "펼치기 ▾"; }
+details.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details.panel.fold, details.box.fold { display: block; }
+details.fold > .foldbody { display: grid; gap: 12px; margin-top: 12px; min-width: 0; }
+details.box.fold > .foldbody { gap: 8px; margin-top: 8px; }
+.tablewrap.scroll { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.tablewrap.scroll.tall { max-height: 60vh; }
+.tablewrap.scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.foldbar { display: flex; justify-content: flex-end; gap: 8px; }
+.linkbtn { appearance: none; background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 2px 4px; }
+button[data-rev] { white-space: nowrap; }
+details.box > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent); }
+footer { font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---- 노트북 한 화면 레이아웃 ---- */
+html, body { height: 100%; }
+body { font-size: 14px; overflow: hidden; }
+.wrap { height: 100%; max-width: 1480px; padding: 12px 20px 10px; display: flex; flex-direction: column; gap: 10px; }
+.topbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 620px) auto; align-items: center; gap: 16px; }
+.titleblock h1 { font-size: 19px; }
+.titleblock .sub { font-size: 12.5px; margin: 0; }
+.topbar .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+.topbar .kpi { padding: 8px 12px; gap: 0; border-radius: 8px; }
+.topbar .kpi .label { font-size: 12px; display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
+.topbar .kpi .label em { font-style: normal; font-weight: 500; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.topbar .kpi .value { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .kpi .value small { font-size: 12px; }
+.tabbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+.tabbar .tabs { border-bottom: 0; }
+.tab { padding: 8px 14px; font-size: 14.5px; }
+.tab small { font-weight: 500; font-size: 12px; color: var(--muted); margin-left: 4px; }
+.foldbar { padding-bottom: 6px; }
+.view { flex: 1; min-height: 0; }
+.view > .grid2 { height: 100%; grid-template-columns: minmax(360px, 430px) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.col { min-height: 0; overflow-y: auto; display: grid; gap: 12px; align-content: start; padding: 0 4px 12px 0; scrollbar-gutter: stable; }
+.col.single { height: 100%; }
+.panel { padding: 14px 16px; gap: 10px; }
+.panel h2 { font-size: 15px; }
+.foot { font-size: 11.5px; color: var(--muted); margin: 0; }
+.detail-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stat { background: var(--bg); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; }
+.stat span { font-size: 12px; color: var(--muted); }
+.stat b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat.ok b { color: var(--ok); } .stat.bad b { color: var(--bad); } .stat.wait b { color: var(--warn); }
+.verdict { padding: 10px 12px; }
+.verdict .big { font-size: 18px; }
+@media (max-width: 1000px), (max-height: 600px) {
+  body { overflow: auto; }
+  .wrap { height: auto; }
+  .topbar { grid-template-columns: 1fr; }
+  .view > .grid2 { height: auto; grid-template-columns: 1fr; }
+  .col { overflow: visible; }
+  .stats { grid-template-columns: 1fr 1fr; }
+}
+.filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filterbar input[type="date"] { width: auto; padding: 6px 8px; }
+.filterbar .flabel { font-size: 13px; font-weight: 600; }
+.filterbar .fcount { font-size: 13px; color: var(--muted); margin-right: auto; }
+.filterbar button.primary { padding: 7px 14px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- B+C 디자인 ---- */
+:root { --band: #17486f; --band-ink: #ffffff; --band-muted: #bcd3e8; --mark: #f5b83d; --bar: #7fb0dc; --bar-bad: #d9483b; --bar-parts: #3fae86; }
+:root[data-theme="dark"] { --band: #12324d; --band-muted: #9cb8d1; --bar: #4f8fc9; --bar-bad: #ec7563; --bar-parts: #48b98f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --band: #12324d; --band-muted: #9cb8d1; --bar: #4f8fc9; --bar-bad: #ec7563; --bar-parts: #48b98f; } }
+svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.hero { justify-content: stretch; align-items: start; background: var(--band); color: var(--band-ink); border-radius: 14px; padding: 14px 20px 30px; display: grid; gap: 10px; }
+.hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.hero h1 { font-size: 20px; color: var(--band-ink); }
+.hero .sub { color: var(--band-muted); font-size: 12.5px; margin: 2px 0 0; }
+.hero .badge { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.35); color: var(--band-ink); }
+.hero .badge.live { color: #b6f0cf; border-color: #7fd8a8; }
+.hero .badge.preview { color: #ffe1a3; border-color: #f5c96a; }
+.hero .tabs { border: 0; gap: 6px; }
+.hero .tab { display: inline-flex; align-items: center; gap: 7px; color: var(--band-muted); border-bottom: 3px solid transparent; padding: 6px 12px; border-radius: 8px 8px 0 0; }
+.hero .tab small { color: inherit; opacity: .85; }
+.hero .tab:hover { color: var(--band-ink); background: rgba(255,255,255,.08); }
+.hero .tab[aria-selected="true"] { color: var(--band-ink); border-bottom-color: var(--mark); background: rgba(255,255,255,.1); }
+.hero .tab:focus-visible { outline-color: var(--mark); }
+.kpirow { display: flex; align-items: flex-end; gap: 14px; margin: -26px 14px 0; }
+.kpirow .kpis { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 760px; }
+.kpirow .kpi { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 6px 16px rgba(16, 40, 64, .12); }
+.kicon { width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex: none; }
+.kicon svg { width: 20px; height: 20px; }
+.kbody { display: grid; min-width: 0; flex: 1; }
+.kbody .label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.kbody .value { font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kbody .value small { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.kgoal { font-size: 11.5px; color: var(--muted); text-align: right; line-height: 1.4; white-space: nowrap; }
+.kpirow .foldbar { padding-bottom: 4px; margin-left: auto; }
+.stat { position: relative; padding: 10px 12px; border: 1px solid var(--line); background: var(--panel); }
+.stat.ok { background: var(--ok-soft); border-color: transparent; } .stat.bad { background: var(--bad-soft); border-color: transparent; } .stat.wait { background: var(--warn-soft); border-color: transparent; }
+.stat b { font-size: 20px; display: flex; align-items: center; gap: 6px; }
+.chart { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 6px; display: grid; gap: 4px; }
+.chart h3 { font-size: 13px; color: var(--muted); margin: 0; display: flex; justify-content: space-between; gap: 8px; }
+.chart svg.c { width: 100%; height: auto; max-height: 200px; stroke: none; }
+.chart .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.chart .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.dept { border-top-width: 3px; }
+.dept.in { border-color: var(--line); border-top-color: var(--ok); }
+.dept.out { border-top-color: var(--warn); }
+@media (max-width: 1000px), (max-height: 600px) { .kpirow { margin: -26px 8px 0; flex-wrap: wrap; } .kpirow .kpis { grid-template-columns: 1fr; } }
+
+/* ---- 연보라 테마 ---- */
+:root { --accent: #6a4fc8; --accent-soft: #efeafd; --bg: #f6f4fb; --line: #e2dcf2; --muted: #6b6489; --ink: #221c3a;
+  --band: #e6defb; --band-ink: #2b2150; --band-muted: #6b5fa0; --mark: #7b5fe0; --bar: #b3a3ef; --bar-parts: #5cc0a0; }
+:root[data-theme="dark"] { --accent: #b9a6f7; --accent-soft: #2c2550; --bg: #15121f; --panel: #1d1930; --line: #332c4f; --muted: #a59cc8; --ink: #ece8fb;
+  --band: #2a2348; --band-ink: #f1edff; --band-muted: #b9addf; --mark: #c4b2ff; --bar: #8a77d9; --bar-parts: #48b98f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --accent: #b9a6f7; --accent-soft: #2c2550; --bg: #15121f; --panel: #1d1930; --line: #332c4f; --muted: #a59cc8; --ink: #ece8fb;
+  --band: #2a2348; --band-ink: #f1edff; --band-muted: #b9addf; --mark: #c4b2ff; --bar: #8a77d9; --bar-parts: #48b98f; } }
+.hero .badge { background: rgba(255,255,255,.55); border-color: #c9bdf2; color: var(--band-ink); }
+.hero .badge.live { color: #1f7a4d; border-color: #8fd3ad; }
+.hero .badge.preview { color: #8a5a00; border-color: #e7c27a; }
+:root[data-theme="dark"] .hero .badge { background: rgba(255,255,255,.08); }
+.hero .tab:hover { background: rgba(123, 95, 224, .10); }
+.hero .tab[aria-selected="true"] { background: rgba(255,255,255,.6); }
+:root[data-theme="dark"] .hero .tab[aria-selected="true"] { background: rgba(255,255,255,.08); }
+.kpirow .kpi { box-shadow: 0 6px 16px rgba(80, 60, 160, .12); }
+tr.sel td, tr.click:hover td { background: var(--accent-soft); }
+
+.hero h1 { display: flex; align-items: center; gap: 10px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: var(--band-ink); }
+.hero h1 em { font-style: normal; color: var(--mark); }
+.hero .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--mark); color: #fff; display: grid; place-items: center; flex: none; }
+.hero .logo svg { width: 22px; height: 22px; }
+.hero .sub { margin-top: 4px; font-size: 13px; }
+#modeBadge[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="hero-top">
+      <div class="titleblock">
+        <h1><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20V10l5 3V10l5 3V6l8 4v10z"/><path d="M7 20v-3h3v3M14 20v-3h3v3"/></svg></span>생산계획 <em>CAPA</em> 사전 검토</h1>
+        <p class="sub">네 부서 자료로 예상 CAPA를 계산해, 상부 목표량을 달성할 수 있는지 관리자 승인 전에 확인합니다</p>
+      </div>
+      <span id="modeBadge" class="badge" hidden>연결 중…</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="화면">
+      <button class="tab" role="tab" id="tab-input" aria-selected="true" data-view="input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>부서 입력 <small>4개 부서</small></button>
+      <button class="tab" role="tab" id="tab-review" aria-selected="false" data-view="review"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 13l2 2 4-4"/></svg>승인 전 확인 <small>생산관리팀</small></button>
+      <button class="tab" role="tab" id="tab-sheet" aria-selected="false" data-view="sheet"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>시트 보기 <small>엑셀 저장</small></button>
+    </nav>
+  </header>
+
+  <div class="kpirow">
+    <section class="kpis" aria-label="KPI">
+      <div class="kpi" title="자료 요청 → 네 부서 자료가 모두 들어온 시각 · 기준 평균 5일 (가정) · 목표 평균 2일 이하 (가정)">
+        <span class="kicon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
+        <div class="kbody"><span class="label">KPI ① 자료 취합 리드타임</span><span class="value" id="kpi1">–</span></div>
+        <span class="kgoal">목표 ≤ 2일<br>기준 5일 (가정)</span>
+      </div>
+      <div class="kpi" title="재검토 횟수 합 ÷ 승인된 계획 건수 · 기준 문제 시 1회 · 목표 0회 (흐름도에서 셈)">
+        <span class="kicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg></span>
+        <div class="kbody"><span class="label">KPI ② 승인 후 재검토</span><span class="value" id="kpi2">–</span></div>
+        <span class="kgoal">목표 0회<br>기준 1회</span>
+      </div>
+    </section>
+    <div class="foldbar"><button class="linkbtn" type="button" id="foldAll">모두 접기</button><button class="linkbtn" type="button" id="openAll">모두 펼치기</button></div>
+  </div>
+
+  <!-- 화면 2 -->
+  <section class="view" id="view-review" hidden>
+    <div class="grid2">
+      <div class="col">
+        <div class="panel">
+          <h2>계획 번호 목록</h2>
+          <div id="seedBox" class="planinfo" hidden>공유 저장소가 비어 있어요. 시연용 예시 계획 3건(세단 A)을 넣을까요? <button class="secondary" type="button" id="seedBtn" style="margin-top:6px">예시 데이터 넣기</button></div>
+          <div class="tablewrap scroll"><table id="planTable"></table></div>
+        </div>
+        <div class="panel">
+          <h2>새 계획 등록</h2>
+          <p class="hint">상부(경영계획)에서 받은 <b>차종과 목표량</b>을 계획 하나로 등록하세요. 차종이 여러 개면 차종마다 따로 등록합니다. 계획 번호와 자료 요청 시각은 자동으로 생깁니다.</p>
+          <form id="planForm" novalidate>
+            <div class="row2">
+              <div class="field"><label for="pStart">대상 기간 시작</label><input id="pStart" type="date" required></div>
+              <div class="field"><label for="pEnd">대상 기간 끝</label><input id="pEnd" type="date" required></div>
+            </div>
+            <div class="row2">
+              <div class="field"><label for="pCar">차종</label><input id="pCar" type="text" list="carList" placeholder="예: 아반떼" required>
+                <datalist id="carList"><option value="아반떼"><option value="쏘나타"><option value="그랜저"></datalist></div>
+              <div class="field"><label for="pTarget">목표량 (대)</label><input id="pTarget" type="number" min="1" step="1" required></div>
+            </div>
+            <div class="field"><label for="pDeadline">자료 입력 마감</label><input id="pDeadline" type="datetime-local" required></div>
+            <button class="primary" type="submit" id="pSave">계획 등록</button>
+            <p class="msg" id="pMsg" hidden></p>
+          </form>
+        </div>
+      </div>
+      <div class="col">
+        <div class="panel" id="detail"></div>
+        <p class="foot">공정 CAPA = (하루 가동 시간 × 가동 일수 − 계획 정비 − 금형·지그 교체) ÷ 사이클 타임 × 가동률 × 직행률 · 예상 CAPA = min(차체, 도장, 의장, 부품 기준 대수) (가정 · 계산식은 확인 필요). 실명·실제 생산 데이터는 쓰지 않습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 화면 1 -->
+  <section class="view" id="view-input">
+    <div class="grid2">
+      <div class="col">
+        <div class="panel" id="uploadPanel">
+          <h2>엑셀 시트로 한 번에 등록</h2>
+          <p class="hint">부서별 입력 시트의 노란 칸을 채워 올리면, 읽어 온 내용을 확인한 뒤 한 번에 등록돼요. 시트에 계획 번호나 입력자가 비어 있으면 아래 칸에서 고른 값을 씁니다.</p>
+          <div class="field"><label for="uFile">입력 시트 파일 (.xlsx, .csv)</label><input id="uFile" type="file" accept=".xlsx,.xls,.csv"></div>
+          <div id="uPreview"></div>
+          <p class="msg" id="uMsg" hidden></p>
+        </div>
+        <div class="panel">
+          <h2>한 값씩 직접 입력</h2>
+          <form id="entryForm" novalidate>
+            <div class="field">
+              <label for="ePlan">계획 번호</label>
+              <select id="ePlan" required></select>
+              <div class="planinfo" id="ePlanInfo">생산관리팀이 등록한 계획만 목록에 나옵니다.</div>
+            </div>
+            <div class="row2">
+              <div class="field"><label for="eDept">부서</label><select id="eDept" required></select></div>
+              <div class="field"><label for="eItem">입력 항목</label><select id="eItem" required></select></div>
+            </div>
+            <div class="row2">
+              <div class="field"><label for="eValue">값</label><input id="eValue" type="number" inputmode="decimal" step="any" required></div>
+              <div class="field"><label for="eUnit">단위</label><input id="eUnit" type="text" readonly></div>
+            </div>
+            <div class="row2">
+              <div class="field"><label for="eCar">차종</label><input id="eCar" type="text" placeholder="예: 세단 A"></div>
+              <div class="field"><label for="eBy">입력자</label><input id="eBy" type="text" placeholder="예: 설비 담당 1" required></div>
+            </div>
+            <button class="primary" type="submit" id="eSave">저장</button>
+            <p class="msg" id="eMsg" hidden></p>
+          </form>
+        </div>
+      </div>
+      <div class="col">
+        <div class="panel">
+          <h2>이 계획에 들어온 자료</h2>
+          <p class="hint">같은 항목은 가장 최근 값으로 계산해요. 항목 표시: <b>CAPA 필수</b> = 꼭 있어야 계산됨 · <b>CAPA 계산</b> = 비우면 기본값 · <b>참고</b> = 검토용.</p>
+          <div class="depts" id="eDepts"></div>
+          <div class="tablewrap scroll tall"><table id="eTable"></table></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 시트 -->
+  <section class="view" id="view-sheet" hidden>
+    <div class="col single">
+      <div class="panel">
+        <h2>계획목록 탭</h2>
+        <div class="filterbar">
+          <span class="flabel">대상 기간이 겹치는 계획</span>
+          <label class="sr" for="spFrom">시작일</label><input id="spFrom" type="date">
+          <span>~</span>
+          <label class="sr" for="spTo">끝일</label><input id="spTo" type="date">
+          <button class="linkbtn" type="button" data-reset="sp">전체 기간</button>
+          <span class="fcount" id="spCount"></span>
+          <button class="primary" type="button" id="spXlsx">엑셀로 저장</button>
+        </div>
+        <p class="msg" id="spMsg" hidden></p>
+        <div class="tablewrap scroll"><table id="sheetPlans"></table></div>
+      </div>
+      <div class="panel">
+        <h2>부서입력 탭</h2>
+        <div class="filterbar">
+          <span class="flabel">기록 시각이 이 기간 안</span>
+          <label class="sr" for="seFrom">시작일</label><input id="seFrom" type="date">
+          <span>~</span>
+          <label class="sr" for="seTo">끝일</label><input id="seTo" type="date">
+          <button class="linkbtn" type="button" data-reset="se">전체 기간</button>
+          <span class="fcount" id="seCount"></span>
+          <button class="primary" type="button" id="seXlsx">엑셀로 저장</button>
+        </div>
+        <p class="msg" id="seMsg" hidden></p>
+        <div class="tablewrap scroll"><table id="sheetEntries"></table></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================================================================
+     설정: Supabase 공유 저장을 쓰려면 아래 두 값을 채우세요.
+     비워 두면 '브라우저 저장 모드'로 동작합니다 (각자 컴퓨터에만 저장).
+     ================================================================ -->
+<script>
+  window.CAPA_CONFIG = {
+    SUPABASE_URL: "",   // 예: "https://abcdefgh.supabase.co"
+    SUPABASE_KEY: ""    // 예: "sb_publishable_..." 또는 "eyJhbGciOi..." (anon public key)
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---------- 기준 정보 ----------
+  var DEPTS = [
+    { key: "sales", name: "영업·수요관리" },
+    { key: "line", name: "생산현장" },
+    { key: "equip", name: "설비보전" },
+    { key: "mat", name: "자재·재고관리" }
+  ];
+  // need: 예상 CAPA 계산에 꼭 필요한 값 / opt: 없으면 기본값으로 계산 / 나머지: 참고 자료
+  var ITEMS = {
+    sales: [
+      { key: "demand", name: "차종·사양별 수요량", unit: "대", group: "수요" },
+      { key: "colors", name: "색상 종류 수", unit: "종", group: "생산 구성(믹스)" },
+      { key: "premium", name: "고사양·옵션 차량 비율", unit: "%", group: "생산 구성(믹스)" },
+      { key: "dueDays", name: "납기까지 남은 일수", unit: "일", group: "납기" }
+    ],
+    line: [
+      { key: "hours", name: "하루 가동 시간 (교대 합계)", unit: "시간", group: "가동 시간 (공통)", need: true },
+      { key: "days", name: "대상 기간 가동 일수", unit: "일", group: "가동 시간 (공통)", need: true },
+      { key: "overtime", name: "잔업·특근 가능 시간", unit: "시간", group: "가동 시간 (공통)" },
+      { key: "ct_body", name: "차체 사이클 타임", unit: "초/대", group: "차체 공정", need: true },
+      { key: "fpy_body", name: "차체 직행률", unit: "%", group: "차체 공정", opt: 100 },
+      { key: "ct_paint", name: "도장 사이클 타임", unit: "초/대", group: "도장 공정", need: true },
+      { key: "fpy_paint", name: "도장 직행률 (재도장 제외)", unit: "%", group: "도장 공정", opt: 100 },
+      { key: "ct_assy", name: "의장 사이클 타임", unit: "초/대", group: "의장 공정", need: true },
+      { key: "fpy_assy", name: "의장 직행률", unit: "%", group: "의장 공정", opt: 100 },
+      { key: "workers", name: "투입 인원", unit: "명", group: "인원·실적" },
+      { key: "output", name: "최근 생산실적 (같은 기간)", unit: "대", group: "인원·실적" }
+    ],
+    equip: [
+      { key: "up_body", name: "차체 설비 가동률", unit: "%", group: "설비 가동률", need: true },
+      { key: "up_paint", name: "도장 설비 가동률", unit: "%", group: "설비 가동률", need: true },
+      { key: "up_assy", name: "의장 설비 가동률", unit: "%", group: "설비 가동률", need: true },
+      { key: "maint", name: "계획 정비로 멈추는 시간 (기간 합계)", unit: "시간", group: "멈추는 시간", opt: 0 },
+      { key: "changeover", name: "금형·지그 교체 시간 (기간 합계)", unit: "시간", group: "멈추는 시간", opt: 0 },
+      { key: "mtbf", name: "평균 고장 간격 (MTBF)", unit: "시간", group: "고장 이력" },
+      { key: "mttr", name: "평균 수리 시간 (MTTR)", unit: "시간", group: "고장 이력" }
+    ],
+    mat: [
+      { key: "stock", name: "병목 부품 현재 재고", unit: "세트", group: "병목 부품 (가장 먼저 모자라는 부품)", need: true },
+      { key: "inbound", name: "병목 부품 기간 내 입고 예정", unit: "세트", group: "병목 부품 (가장 먼저 모자라는 부품)", opt: 0 },
+      { key: "perCar", name: "차 1대당 소요량 (BOM 원단위)", unit: "세트/대", group: "병목 부품 (가장 먼저 모자라는 부품)", need: true },
+      { key: "safety", name: "안전재고 (남겨 둘 양)", unit: "세트", group: "병목 부품 (가장 먼저 모자라는 부품)", opt: 0 },
+      { key: "leadtime", name: "추가 조달 리드타임", unit: "일", group: "공급" }
+    ]
+  };
+  var PROCS = [{ key: "body", name: "차체" }, { key: "paint", name: "도장" }, { key: "assy", name: "의장" }];
+  var CAUSES = ["생산 가능량 부족", "설비 문제", "자재 부족"];
+
+  function deptName(k) { for (var i = 0; i < DEPTS.length; i++) if (DEPTS[i].key === k) return DEPTS[i].name; return k; }
+  function itemDef(dept, key) { var l = ITEMS[dept] || []; for (var i = 0; i < l.length; i++) if (l[i].key === key) return l[i]; return null; }
+
+  // ---------- 상태 ----------
+  var state = { plans: [], entries: [], selected: null, mode: "loading", canWrite: true };
+  var db = null;
+
+  // 미리보기용 예시 (공유 저장이 안 될 때만 사용)
+  function previewSeed() {
+    var P = [
+      { id: "P-2611-01", car: "세단 A", start: "2026-11-09", end: "2026-11-15", target: 3300, requestedAt: "2026-11-02T09:00:00+09:00", deadline: "2026-11-04T18:00:00+09:00", autoJudge: "달성 가능", finalJudge: "달성 가능", expectedCapa: 3414, shortage: 0, memo: "", reviewedAt: "2026-11-04T16:20:00+09:00", approvedAt: "2026-11-05", reviewCount: 1, reviewCauses: ["설비 문제"], reviews: [{ at: "2026-11-06", cause: "설비 문제", memo: "도장 오븐 고장 소식으로 설비 가동률을 다시 받아 일정 재검토 (예시)" }] },
+      { id: "P-2611-02", car: "세단 A", start: "2026-11-16", end: "2026-11-22", target: 3400, requestedAt: "2026-11-05T09:00:00+09:00", deadline: "2026-11-07T18:00:00+09:00", reviewCount: 0, reviewCauses: [] },
+      { id: "P-2611-03", car: "세단 A", start: "2026-11-23", end: "2026-11-29", target: 3300, requestedAt: "2026-11-06T10:00:00+09:00", deadline: "2026-11-10T18:00:00+09:00", reviewCount: 0, reviewCauses: [] }
+    ];
+    var E = [];
+    function add(plan, dept, item, value, by, at) { E.push([plan, dept, item, value, "", by, at]); }
+    function full(plan, day, maint, upPaint, t) {
+      add(plan, "sales", "demand", t.demand, "영업 담당 1", day[0] + "T13:00:00+09:00");
+      add(plan, "sales", "colors", 6, "영업 담당 1", day[0] + "T13:05:00+09:00");
+      [["hours", 16], ["days", 5], ["ct_body", 62], ["fpy_body", 98], ["ct_paint", 66], ["fpy_paint", 94], ["ct_assy", 60], ["fpy_assy", 99]]
+        .forEach(function (x, i) { add(plan, "line", x[0], x[1], "현장 담당 1", day[1] + "T10:" + String(10 + i) + ":00+09:00"); });
+      [["up_body", 93], ["up_paint", upPaint], ["up_assy", 95], ["maint", maint], ["changeover", 2]]
+        .forEach(function (x, i) { add(plan, "equip", x[0], x[1], "설비 담당 1", day[2] + "T09:" + String(10 + i) + ":00+09:00"); });
+      [["stock", 2200], ["inbound", 2000], ["perCar", 1], ["safety", 300]]
+        .forEach(function (x, i) { add(plan, "mat", x[0], x[1], "자재 담당 1", day[3] + "T14:" + String(10 + i) + ":00+09:00"); });
+    }
+    full("P-2611-01", ["2026-11-02", "2026-11-03", "2026-11-03", "2026-11-03"], 4, 90, { demand: 3350 });
+    full("P-2611-02", ["2026-11-05", "2026-11-05", "2026-11-06", "2026-11-06"], 10, 88, { demand: 3420 });
+    add("P-2611-03", "sales", "demand", 3300, "영업 담당 1", "2026-11-06T13:30:00+09:00");
+    [["hours", 16], ["days", 5], ["ct_body", 62], ["ct_paint", 66], ["ct_assy", 60]]
+      .forEach(function (x, i) { add("P-2611-03", "line", x[0], x[1], "현장 담당 1", "2026-11-06T14:" + String(10 + i) + ":00+09:00"); });
+    E = E.map(function (r, i) {
+      var d = itemDef(r[1], r[2]);
+      return { id: "e" + String(i + 1).padStart(3, "0"), planId: r[0], dept: r[1], item: r[2], itemName: d.name, value: r[3], unit: d.unit, car: r[4], by: r[5], recordedAt: r[6] };
+    });
+    return { plans: P, entries: E };
+  }
+
+  // ---------- 계산 ----------
+  function entriesOf(planId) { return state.entries.filter(function (e) { return e.planId === planId; }); }
+  function latest(list, dept, item) {
+    var best = null;
+    list.forEach(function (e) { if (e.dept === dept && e.item === item && (!best || e.recordedAt > best.recordedAt)) best = e; });
+    return best ? Number(best.value) : null;
+  }
+  function firstByDept(list) {
+    var f = {};
+    list.forEach(function (e) { var t = Date.parse(e.recordedAt); if (!(e.dept in f) || t < f[e.dept]) f[e.dept] = t; });
+    return f;
+  }
+  function analyze(plan) {
+    var list = entriesOf(plan.id);
+    var firsts = firstByDept(list);
+    var submitted = DEPTS.map(function (d) { return d.key in firsts; });
+    var allIn = submitted.every(Boolean);
+    function v(dept, key) {
+      var x = latest(list, dept, key);
+      if (x == null) { var d = itemDef(dept, key); if (d && d.opt != null) return d.opt; }
+      return x;
+    }
+    var missing = [];
+    DEPTS.forEach(function (d) { ITEMS[d.key].forEach(function (it) { if (it.need && latest(list, d.key, it.key) == null) missing.push(d.name + " · " + it.name); }); });
+    var hours = v("line", "hours"), days = v("line", "days"), maint = v("equip", "maint"), chg = v("equip", "changeover");
+    var avail = (hours != null && days != null) ? Math.max(0, hours * days - maint - chg) : null;
+    var procs = PROCS.map(function (p) {
+      var ct = v("line", "ct_" + p.key), up = v("equip", "up_" + p.key), fpy = v("line", "fpy_" + p.key);
+      var capa = (avail != null && ct && up != null) ? Math.floor(avail * 3600 / ct * up / 100 * fpy / 100) : null;
+      return { key: p.key, name: p.name, ct: ct, up: up, fpy: fpy, capa: capa };
+    });
+    var lineCapa = procs.every(function (p) { return p.capa != null; }) ? Math.min.apply(null, procs.map(function (p) { return p.capa; })) : null;
+    var bottleneck = lineCapa == null ? null : procs.filter(function (p) { return p.capa === lineCapa; })[0].name;
+    var stock = v("mat", "stock"), inbound = v("mat", "inbound"), perCar = v("mat", "perCar"), safety = v("mat", "safety");
+    var parts = (stock != null && perCar) ? Math.max(0, Math.floor((stock + inbound - safety) / perCar)) : null;
+    var capa = (allIn && !missing.length && lineCapa != null && parts != null) ? Math.min(lineCapa, parts) : null;
+    var limit = capa == null ? null : (parts < lineCapa ? "부품" : bottleneck + " 공정");
+    var judge = capa == null ? "자료 부족" : (capa >= plan.target ? "달성 가능" : "미달");
+    var shortage = capa == null ? null : Math.max(0, plan.target - capa);
+    var lead = null;
+    if (allIn && plan.requestedAt) {
+      var last = Math.max.apply(null, DEPTS.map(function (d) { return firsts[d.key]; }));
+      lead = (last - Date.parse(plan.requestedAt)) / 86400000;
+    }
+    return { list: list, firsts: firsts, submitted: submitted, allIn: allIn, missing: missing, hours: hours, days: days, maint: maint, chg: chg, avail: avail, procs: procs, lineCapa: lineCapa, bottleneck: bottleneck, stock: stock, inbound: inbound, perCar: perCar, safety: safety, parts: parts, capa: capa, limit: limit, judge: judge, shortage: shortage, lead: lead };
+  }
+  function status(plan, a) {
+    if (plan.approvedAt) return { t: "승인됨", c: "done" };
+    if (plan.reviewedAt) return { t: "확인 완료 · " + (plan.finalJudge || a.judge), c: (plan.finalJudge || a.judge) === "달성 가능" ? "ok" : "bad" };
+    if (a.capa == null) return { t: "자료 부족", c: "wait" };
+    return { t: a.judge, c: a.judge === "달성 가능" ? "ok" : "bad" };
+  }
+
+  // ---------- 표시 도우미 ----------
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function fmtN(n) { return n == null ? "–" : Number(n).toLocaleString("ko-KR"); }
+  function fmtDT(iso) {
+    if (!iso) return "–";
+    var d = new Date(iso); if (isNaN(d)) return esc(iso);
+    return (d.getMonth() + 1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  function reviewsOf(p) {
+    if (Array.isArray(p.reviews)) return p.reviews;
+    return (p.reviewCauses || []).map(function (c) { return { at: "", cause: c, memo: "" }; });
+  }
+  function carOf(p) { return p && p.car ? p.car : "차종 미정"; }
+  function fmtD(s) { if (!s) return "–"; var p = s.split("-"); return p.length === 3 ? Number(p[1]) + "/" + Number(p[2]) : esc(s); }
+  function showMsg(el, text, isErr) { el.textContent = text; el.className = "msg" + (isErr ? " err" : ""); el.hidden = false; }
+
+  // ---------- 저장 ----------
+  function newId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function writeErr(e) {
+    var m = e && (e.message || e.details);
+    return "저장하지 못했어요. 인터넷 연결과 Supabase 설정을 확인한 뒤 다시 눌러 주세요." + (m ? " (" + m + ")" : "");
+  }
+  // ---- 저장소: Supabase(공유) 또는 브라우저(localStorage) ----
+  var sb = null;
+  var LS_P = "capa_plans_v1", LS_E = "capa_entries_v1";
+  function persistLocal() {
+    try { localStorage.setItem(LS_P, JSON.stringify(state.plans)); localStorage.setItem(LS_E, JSON.stringify(state.entries)); } catch (e) {}
+  }
+  function sbUpsert(table, obj) {
+    return sb.from(table).upsert({ id: obj.id, data: obj, updated_at: new Date().toISOString() }).then(function (r) { if (r.error) throw r.error; return refresh(); });
+  }
+  function savePlan(p) {
+    if (sb) return sbUpsert("plans", p);
+    state.plans.push(p); persistLocal(); render(); return Promise.resolve();
+  }
+  function updatePlan(id, patch) {
+    var cur = state.plans.find(function (x) { return x.id === id; });
+    var next = Object.assign({}, cur, patch);
+    if (sb) return sbUpsert("plans", next);
+    Object.assign(cur, patch); persistLocal(); render(); return Promise.resolve();
+  }
+  function saveEntry(e) {
+    if (sb) return sbUpsert("entries", e);
+    state.entries.push(e); persistLocal(); render(); return Promise.resolve();
+  }
+  var lastSig = "";
+  function refresh() {
+    if (!sb) return Promise.resolve();
+    return Promise.all([sb.from("plans").select("data"), sb.from("entries").select("data")]).then(function (res) {
+      if (res[0].error) throw res[0].error; if (res[1].error) throw res[1].error;
+      var plans = res[0].data.map(function (r) { return r.data; }), entries = res[1].data.map(function (r) { return r.data; });
+      var sig = JSON.stringify([plans, entries]);
+      if (sig !== lastSig) { lastSig = sig; state.plans = plans; state.entries = entries; render(); }
+    });
+  }
+
+  // ---------- KPI ----------
+  function renderKpis() {
+    var leads = [];
+    state.plans.forEach(function (p) { var a = analyze(p); if (a.lead != null) leads.push(a.lead); });
+    var k1 = document.getElementById("kpi1");
+    if (leads.length) {
+      var avg = leads.reduce(function (s, x) { return s + x; }, 0) / leads.length;
+      k1.innerHTML = avg.toFixed(1) + "일<small>평균 · " + leads.length + "건</small>";
+    } else k1.innerHTML = "–<small>아직 네 부서 자료가 다 모인 계획이 없어요</small>";
+    var k2 = document.getElementById("kpi2");
+    var approved = state.plans.filter(function (p) { return p.approvedAt; });
+    if (approved.length) {
+      var sum = approved.reduce(function (s, p) { return s + reviewsOf(p).length; }, 0);
+      k2.innerHTML = (sum / approved.length).toFixed(2) + "회<small>재검토 " + sum + "건 / 승인 " + approved.length + "건</small>";
+    } else k2.innerHTML = "–<small>아직 승인된 계획이 없어요</small>";
+  }
+
+  // ---------- 화면 2 ----------
+  function renderPlanTable() {
+    var t = document.getElementById("planTable");
+    if (!state.plans.length) { t.innerHTML = '<tr><td class="empty">아직 등록된 계획이 없어요. 위에서 새 계획을 등록하세요.</td></tr>'; return; }
+    var rows = state.plans.slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; }).map(function (p) {
+      var a = analyze(p), s = status(p, a), n = a.submitted.filter(Boolean).length;
+      return '<tr class="click' + (p.id === state.selected ? " sel" : "") + '" data-id="' + esc(p.id) + '" tabindex="0">' +
+        '<td class="mono">' + esc(p.id) + '</td><td>' + esc(carOf(p)) + '</td><td>' + fmtD(p.start) + "–" + fmtD(p.end) + '</td><td class="n">' + fmtN(p.target) + '</td><td class="n">' + n + '/4</td><td><span class="pill ' + s.c + '">' + esc(s.t) + "</span></td></tr>";
+    }).join("");
+    t.innerHTML = '<thead><tr><th>계획 번호</th><th>차종</th><th>대상 기간</th><th class="n">목표량</th><th class="n">제출</th><th>상태</th></tr></thead><tbody>' + rows + "</tbody>";
+  }
+
+  // 미달일 때 부서별로 무엇을 얼마나 바꾸면 목표량에 닿는지 (다른 값은 그대로 둔다고 보고 하나씩 계산)
+  function remedies(plan, a) {
+    var T = plan.target, out = [];
+    if (a.capa == null || a.capa >= T) return out;
+    function r1(x) { return Math.round(x * 10) / 10; }
+    function up1(x) { return Math.ceil(x * 10 - 1e-9) / 10; }
+    function dn1(x) { return Math.floor(x * 10 + 1e-9) / 10; }
+    var sec = a.avail * 3600;
+    var short = a.procs.filter(function (p) { return p.capa < T; });
+    if (short.length) {
+      // 가동 시간을 늘리는 경우: 모든 공정이 목표를 처리하려면 필요한 시간
+      var needH = Math.max.apply(null, a.procs.map(function (p) { return T * p.ct / (3600 * p.up / 100 * p.fpy / 100); }));
+      var extra = up1(needH - a.avail);
+      var ot = latest(a.list, "line", "overtime");
+      out.push({ dept: "line", text: "잔업·특근으로 가동 시간 " + extra + "시간 추가 (지금 " + r1(a.avail) + "시간 → " + up1(needH) + "시간)" + (ot != null ? (ot >= extra ? " · 입력된 잔업 가능 시간 " + ot + "시간 안이라 가능" : " · 입력된 잔업 가능 시간 " + ot + "시간보다 많아 이것만으로는 부족") : "") });
+      if (a.maint + a.chg > 0) out.push({ dept: "equip", text: "계획 정비·금형 교체 시간을 " + Math.min(extra, a.maint + a.chg) + "시간 줄이기 (지금 합계 " + (a.maint + a.chg) + "시간)" + (a.maint + a.chg >= extra ? "" : " · 이것만으로는 부족") });
+      short.forEach(function (p) {
+        var ctReq = dn1(sec * (p.up / 100) * (p.fpy / 100) / T);
+        var upReq = up1(T * p.ct / (sec * p.fpy / 100) * 100);
+        var fpyReq = up1(T * p.ct / (sec * p.up / 100) * 100);
+        out.push({ dept: "line", text: p.name + " 사이클 타임 " + p.ct + "초 → " + ctReq + "초 이하로 단축" });
+        out.push({ dept: "equip", text: p.name + " 설비 가동률 " + p.up + "% → " + (upReq <= 100 ? upReq + "% 이상" : "100%를 넘어야 해서 이것만으로는 불가") });
+        out.push({ dept: "line", text: p.name + " 직행률 " + p.fpy + "% → " + (fpyReq <= 100 ? fpyReq + "% 이상 (재작업 줄이기)" : "100%를 넘어야 해서 이것만으로는 불가") });
+      });
+    }
+    if (a.parts < T) {
+      var sets = Math.ceil(T * a.perCar - (a.stock + a.inbound - a.safety));
+      var lt = latest(a.list, "mat", "leadtime");
+      out.push({ dept: "mat", text: "병목 부품 " + fmtN(sets) + "세트 추가 확보 (입고 앞당기기 또는 추가 조달)" + (lt != null ? " · 추가 조달 리드타임 " + lt + "일이라 대상 기간 전에 들어오는지 확인" : "") });
+      if (a.safety > 0) out.push({ dept: "mat", text: "안전재고 " + fmtN(a.safety) + "세트 중 일부 사용 검토 (위험 감수)" });
+    }
+    out.push({ dept: "pm", text: "위 조정이 어려우면 목표량 " + fmtN(T) + "대 → " + fmtN(a.capa) + "대로 조정하거나 남는 " + fmtN(T - a.capa) + "대의 납기 분할을 상부와 협의" });
+    return out;
+  }
+  function remedyText(plan, a, list) {
+    var by = {};
+    list.forEach(function (r) { (by[r.dept] = by[r.dept] || []).push(r.text); });
+    var head = "[" + plan.id + " · " + carOf(plan) + " " + fmtN(plan.target) + "대] 예상 CAPA " + fmtN(a.capa) + "대로 " + fmtN(plan.target - a.capa) + "대 부족 (한계: " + a.limit + "). 아래 중 가능한 조정을 회신 부탁드립니다.";
+    return head + "\n" + DEPTS.concat([{ key: "pm", name: "생산관리팀 · 상부 협의" }]).map(function (d) { return by[d.key] ? "■ " + d.name + "\n" + by[d.key].map(function (t) { return " - " + t; }).join("\n") : ""; }).filter(Boolean).join("\n");
+  }
+
+  var ICO_OK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/></svg>';
+  var ICO_WARN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.2v.1"/></svg>';
+  var ICO_WAIT = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>';
+  function chartHtml(p, a) {
+    var bars = a.procs.map(function (pr) { return { name: pr.name, v: pr.capa, parts: false }; }).concat([{ name: "부품 기준", v: a.parts, parts: true }]);
+    var known = bars.filter(function (b) { return b.v != null; });
+    var W = 720, H = 180, L = 44, R = 12, T = 16, B = 26;
+    var max = Math.max.apply(null, known.map(function (b) { return b.v; }).concat([p.target])) * 1.12 || 1;
+    var y = function (v) { return T + (H - T - B) * (1 - v / max); };
+    var bw = (W - L - R) / bars.length, g = "";
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
+      var v = max * f, yy = y(v);
+      g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--line)" stroke-width="1"/>' +
+        '<text x="' + (L - 6) + '" y="' + (yy + 4) + '" text-anchor="end" font-size="11" fill="var(--muted)">' + fmtN(Math.round(v)) + "</text>";
+    });
+    bars.forEach(function (b, i) {
+      var cx = L + bw * i + bw / 2, w = Math.min(70, bw * 0.55);
+      if (b.v == null) {
+        g += '<rect x="' + (cx - w / 2) + '" y="' + (H - B - 40) + '" width="' + w + '" height="40" rx="4" fill="none" stroke="var(--muted)" stroke-dasharray="4 3"/>' +
+          '<text x="' + cx + '" y="' + (H - B - 16) + '" text-anchor="middle" font-size="11" fill="var(--muted)">자료 없음</text>';
+      } else {
+        var under = b.v < p.target, isLimit = a.capa != null && b.v === a.capa;
+        var col = under ? "var(--bar-bad)" : b.parts ? "var(--bar-parts)" : "var(--bar)";
+        g += '<rect x="' + (cx - w / 2) + '" y="' + y(b.v) + '" width="' + w + '" height="' + (H - B - y(b.v)) + '" rx="4" fill="' + col + '"' + (isLimit ? ' stroke="var(--ink)" stroke-width="2"' : "") + "/>" +
+          '<text x="' + cx + '" y="' + (y(b.v) - 5) + '" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">' + fmtN(b.v) + "</text>";
+      }
+      g += '<text x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle" font-size="12" fill="var(--ink)">' + b.name + (a.bottleneck === b.name && !b.parts ? " (병목)" : "") + "</text>";
+    });
+    var ty = y(p.target);
+    g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + ty + '" y2="' + ty + '" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="6 4"/>';
+    return '<div class="chart"><h3><span>공정별 CAPA와 목표량</span><span>점선 = 목표 ' + fmtN(p.target) + '대 · 가장 낮은 막대 = 예상 CAPA</span></h3>' +
+      '<svg class="c" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="공정별 CAPA와 목표량 비교 막대그래프">' + g + "</svg>" +
+      '<div class="legend"><span><i style="background:var(--bar)"></i>공정 CAPA</span><span><i style="background:var(--bar-parts)"></i>부품 기준</span><span><i style="background:var(--bar-bad)"></i>목표 미달</span><span>테두리 = 예상 CAPA를 정한 막대</span></div></div>';
+  }
+  function renderDetail() {
+    var box = document.getElementById("detail");
+    var p = state.plans.find(function (x) { return x.id === state.selected; });
+    if (!p) { box.innerHTML = '<div class="empty">왼쪽 목록에서 계획을 고르면 예상 CAPA와 판정이 보여요.</div>'; return; }
+    var a = analyze(p);
+    var deadline = Date.parse(p.deadline);
+    var depts = DEPTS.map(function (d, i) {
+      var t = a.firsts[d.key];
+      var late = t && deadline && t > deadline;
+      return '<div class="dept ' + (a.submitted[i] ? "in" : "out") + '"><b>' + d.name + "</b>" +
+        (a.submitted[i] ? '<span class="pill ' + (late ? "wait" : "ok") + '">' + (late ? "마감 후 제출" : "제출") + "</span><span>" + fmtDT(new Date(t).toISOString()) + "</span>" : '<span class="pill wait">미제출</span><span>&nbsp;</span>') + "</div>";
+    }).join("");
+
+    var vClass = a.judge === "달성 가능" ? "ok" : a.judge === "미달" ? "bad" : "wait";
+    var gap = a.capa == null ? null : a.capa - p.target;
+    var verdict = '<div class="stats">' +
+      '<div class="stat ' + vClass + '"><span>판정</span><b>' + (a.judge === "달성 가능" ? ICO_OK : a.judge === "미달" ? ICO_WARN : ICO_WAIT) + a.judge + "</b></div>" +
+      '<div class="stat"><span>목표량 (상부)</span><b>' + fmtN(p.target) + "대</b></div>" +
+      '<div class="stat"><span>예상 CAPA' + (a.limit ? " · " + esc(a.limit) + " 한계" : "") + "</span><b>" + (a.capa == null ? "–" : fmtN(a.capa) + "대") + "</b></div>" +
+      '<div class="stat ' + (gap == null ? "wait" : gap < 0 ? "bad" : "ok") + '"><span>' + (gap == null ? "자료 부족" : gap < 0 ? "부족" : "여유") + "</span><b>" + (gap == null ? DEPTS.filter(function (d, i) { return !a.submitted[i]; }).length + "개 부서 미제출" : fmtN(Math.abs(gap)) + "대") + "</b></div></div>";
+
+    var procRows = a.procs.map(function (pr) {
+      return "<tr" + (a.bottleneck === pr.name ? ' class="sel"' : "") + "><td>" + pr.name + (a.bottleneck === pr.name ? ' <span class="pill bad">병목</span>' : "") + '</td><td class="n">' + (pr.ct == null ? "–" : pr.ct + "초") + '</td><td class="n">' + (pr.up == null ? "–" : pr.up + "%") + '</td><td class="n">' + (pr.fpy == null ? "–" : pr.fpy + "%") + '</td><td class="n"><b>' + fmtN(pr.capa) + "</b></td></tr>";
+    }).join("");
+    var rems = remedies(p, a), remedyHtml = "";
+    if (rems.length) {
+      var byD = {};
+      rems.forEach(function (r) { (byD[r.dept] = byD[r.dept] || []).push(r.text); });
+      remedyHtml = '<div class="box" style="border-color:var(--bad)"><h3 style="color:var(--bad)">목표량 ' + fmtN(p.target) + "대에 닿으려면 · 부서별 요청</h3>" +
+        '<p class="hint">각 줄은 <b>그것 하나만</b> 바꿨을 때 목표에 닿는 값이에요(다른 값은 그대로). 여러 개를 조금씩 섞어도 됩니다.</p>' +
+        DEPTS.concat([{ key: "pm", name: "생산관리팀 · 상부 협의" }]).filter(function (d) { return byD[d.key]; }).map(function (d) {
+          return '<div><b>' + (d.key === "pm" ? d.name + " (위가 어려울 때)" : d.name + "에 요청") + "</b><ul style=\"margin:4px 0 0;padding-left:18px\">" + byD[d.key].map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul></div>";
+        }).join("") +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" type="button" id="remCopy">요청 문구 복사</button>' +
+        (p.reviewedAt ? "" : '<button class="secondary" type="button" id="remMemo">조정 메모에 넣기</button>') + "</div>" +
+        '<textarea id="remText" readonly style="min-height:120px;font-size:13px">' + esc(remedyText(p, a, rems)) + "</textarea></div>";
+    }
+    var calc = '<div class="calc">' +
+      '<div class="line"><span>가용 시간 = 하루 ' + (a.hours == null ? "–" : a.hours) + "시간 × " + (a.days == null ? "–" : a.days) + "일 − 정비 " + a.maint + "시간 − 교체 " + a.chg + "시간</span><span>" + (a.avail == null ? "–" : fmtN(a.avail) + " 시간") + "</span></div>" +
+      '<div class="tablewrap"><table><thead><tr><th>공정</th><th class="n">사이클 타임</th><th class="n">가동률</th><th class="n">직행률</th><th class="n">공정 CAPA (대)</th></tr></thead><tbody>' + procRows + "</tbody></table></div>" +
+      '<div class="line"><span>라인 CAPA (처리량이 가장 적은 공정 = 병목' + (a.bottleneck ? " · " + a.bottleneck : "") + ")</span><span>" + fmtN(a.lineCapa) + " 대</span></div>" +
+      '<div class="line"><span>부품 기준 = (재고 ' + fmtN(a.stock) + " + 입고 " + fmtN(a.inbound) + " − 안전재고 " + fmtN(a.safety) + ") ÷ 1대당 " + (a.perCar == null ? "–" : a.perCar) + "</span><span>" + fmtN(a.parts) + " 대</span></div>" +
+      '<div class="line total"><span>예상 CAPA (라인과 부품 중 작은 값' + (a.limit ? " · " + a.limit + "이 한계" : "") + ")</span><span>" + fmtN(a.capa) + " 대</span></div>" +
+      '<div class="line total"><span>목표량 (상부 확정치)</span><span>' + fmtN(p.target) + " 대</span></div>" +
+      (a.missing.length ? '<p class="hint">아직 없는 필수 값: ' + a.missing.map(esc).join(", ") + "</p>" : "") +
+      '<p class="hint">직행률·입고·안전재고·정비·교체 시간은 입력이 없으면 각각 100%, 0으로 계산해요.</p></div>';
+
+    var dis = state.canWrite ? "" : " disabled";
+    var confirm;
+    if (p.reviewedAt) {
+      confirm = '<div class="box"><h3>승인 전 확인 기록</h3><p class="hint">확인 완료 ' + fmtDT(p.reviewedAt) + " · 자동 판정 <b>" + esc(p.autoJudge) + "</b> · 확정 판정 <b>" + esc(p.finalJudge) + "</b> · 예상 CAPA " + fmtN(p.expectedCapa) + "대</p>" +
+        (p.memo ? '<p class="hint">조정 메모: ' + esc(p.memo) + "</p>" : "") +
+        (p.approvedAt ? "" : '<button class="secondary" type="button" id="reopen"' + dis + ">다시 확인하기</button>") + "</div>";
+    } else {
+      confirm = '<div class="box"><h3>담당자 확인</h3>' +
+        '<div class="field"><label for="fJudge">확정 판정</label><select id="fJudge"' + (a.capa == null ? " disabled" : "") + dis + '><option value="">자동 판정 따름 (' + a.judge + ')</option><option>달성 가능</option><option>미달</option></select></div>' +
+        '<div class="field"><label for="fMemo">조정 메모 (미달일 때 무엇을 조정했는지)</label><textarea id="fMemo" placeholder="예: 도장 라인 잔업 2일 추가, 부품 입고 일정 앞당김 요청"' + dis + "></textarea></div>" +
+        '<button class="primary" type="button" id="fConfirm"' + (a.capa == null ? " disabled" : "") + dis + ">확인 완료</button>" +
+        '<p class="hint">미달이면 부서가 값을 고친 뒤 예상 CAPA가 다시 계산돼요. 달성 가능이 확인되면 승인을 요청하세요.</p></div>';
+    }
+
+    var approve;
+    if (!p.approvedAt) {
+      approve = '<div class="box"><h3>관리자 승인 기록</h3>' +
+        '<div class="field"><label for="fApprove">승인일</label><input id="fApprove" type="date"' + (p.reviewedAt ? "" : " disabled") + dis + "></div>" +
+        '<button class="secondary" type="button" id="fApproveBtn"' + (p.reviewedAt ? "" : " disabled") + dis + ">승인일 기록</button>" +
+        '<p class="hint">' + (p.reviewedAt ? (p.finalJudge === "미달" ? "확정 판정이 미달이에요. 조정 후 다시 확인하고 승인받는 것을 권해요." : "확인을 마쳤으니 승인을 요청할 수 있어요.") : "먼저 담당자 확인을 마쳐야 해요.") + "</p></div>";
+    } else {
+      var revs = reviewsOf(p);
+      var today = new Date(); var todayStr = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+      approve = '<div class="box"><h3>승인 후 재검토 기록 (KPI ②)</h3><p class="hint">승인일 ' + fmtD(p.approvedAt) + " · 지금까지 재검토 <b>" + revs.length + "회</b></p>" +
+        (revs.length ? '<div class="tablewrap scroll"><table><thead><tr><th>날짜</th><th>원인</th><th>내용</th><th></th></tr></thead><tbody>' + revs.map(function (r, i) {
+          return "<tr><td>" + (r.at ? fmtD(r.at) : "–") + "</td><td>" + esc(r.cause) + "</td><td>" + esc(r.memo || "") + '</td><td><button class="secondary" type="button" data-rev="' + i + '" style="padding:3px 8px;font-size:12px"' + dis + ">취소</button></td></tr>";
+        }).join("") + "</tbody></table></div>" : "") +
+        '<div class="row2"><div class="field"><label for="fRevDate">재검토한 날</label><input id="fRevDate" type="date" value="' + todayStr + '"' + dis + '></div>' +
+        '<div class="field"><label for="fCause">재검토 원인</label><select id="fCause"' + dis + ">" + CAUSES.map(function (c) { return "<option>" + c + "</option>"; }).join("") + "</select></div></div>" +
+        '<div class="field"><label for="fRevMemo">무엇을 다시 했나</label><textarea id="fRevMemo" placeholder="예: 도장 설비 고장으로 자료를 다시 받아 일정 재검토"' + dis + "></textarea></div>" +
+        '<button class="secondary" type="button" id="fReview"' + dis + ">재검토 1건 기록</button>" +
+        '<p class="hint">승인 뒤에 생산 가능량·설비·자재 문제로 자료를 다시 모으거나 계획을 다시 검토했을 때만 기록하세요.</p></div>';
+    }
+
+    box.innerHTML = '<div class="detail-head"><h2><span class="mono">' + esc(p.id) + "</span> · " + esc(carOf(p)) + " " + fmtN(p.target) + "대 · " + fmtD(p.start) + "–" + fmtD(p.end) + "</h2>" +
+      '<span class="hint">자료 요청 ' + fmtDT(p.requestedAt) + " · 마감 " + fmtDT(p.deadline) + (a.lead != null ? " · 취합 " + a.lead.toFixed(1) + "일" : "") + "</span></div>" +
+      verdict + chartHtml(p, a) + '<div class="depts">' + depts + "</div>" + remedyHtml + calc +
+      (p.approvedAt ? "" : '<details class="box fold" data-fold="d:edit"><summary><h3>차종·목표량 고치기</h3></summary><div class="row2" style="margin-top:8px"><div class="field"><label for="xCar">차종</label><input id="xCar" type="text" list="carList" value="' + esc(p.car || "") + '"' + dis + '></div><div class="field"><label for="xTarget">목표량 (대)</label><input id="xTarget" type="number" min="1" step="1" value="' + esc(p.target) + '"' + dis + '></div></div><button class="secondary" type="button" id="xSave"' + dis + '>저장</button><p class="hint">상부 확정치가 바뀌었을 때만 고치세요. 이미 확인을 마친 계획이면 다시 확인해야 해요.</p></details>') +
+      '<div class="split">' + confirm + approve + "</div>" +
+      '<p class="msg" id="dMsg" hidden></p>';
+    foldDetail(box);
+
+    var dMsg = document.getElementById("dMsg");
+    var rc = document.getElementById("remCopy");
+    if (rc) rc.addEventListener("click", function () {
+      var txt = document.getElementById("remText").value;
+      try {
+        navigator.clipboard.writeText(txt).then(function () { showMsg(dMsg, "요청 문구를 복사했어요. 메신저나 메일에 붙여 넣어 각 부서에 보내세요."); },
+          function () { document.getElementById("remText").select(); showMsg(dMsg, "자동 복사가 막혀 있어요. 선택된 문구를 Ctrl+C로 복사하세요.", true); });
+      } catch (e) { document.getElementById("remText").select(); showMsg(dMsg, "자동 복사가 막혀 있어요. 선택된 문구를 Ctrl+C로 복사하세요.", true); }
+    });
+    var rm = document.getElementById("remMemo");
+    if (rm) rm.addEventListener("click", function () {
+      var m = document.getElementById("fMemo"); if (!m) return;
+      m.value = (m.value ? m.value + "\n" : "") + "부서 요청: " + rems.filter(function (r) { return r.dept !== "pm" && r.text.indexOf("불가") < 0 && r.text.indexOf("부족") < 0; }).map(function (r) { return r.text; }).join(" / ");
+      m.focus();
+    });
+    var fc = document.getElementById("fConfirm");
+    if (fc) fc.addEventListener("click", function () {
+      var chosen = document.getElementById("fJudge").value || a.judge;
+      var memo = document.getElementById("fMemo").value.trim();
+      fc.disabled = true;
+      updatePlan(p.id, { autoJudge: a.judge, finalJudge: chosen, expectedCapa: a.capa, shortage: a.shortage, memo: memo, reviewedAt: new Date().toISOString() })
+        .then(function () { showMsg(dMsg, "확인을 기록했어요. 계획목록 탭에 확정 판정과 CAPA 검토일이 들어갔어요."); })
+        .catch(function (e) { fc.disabled = false; showMsg(dMsg, writeErr(e), true); });
+    });
+    var xs = document.getElementById("xSave");
+    if (xs) xs.addEventListener("click", function () {
+      var car = document.getElementById("xCar").value.trim(), tg = Number(document.getElementById("xTarget").value);
+      if (!car || !(tg > 0)) { showMsg(dMsg, "차종과 0보다 큰 목표량을 넣어 주세요.", true); return; }
+      if (car === p.car && tg === p.target) { showMsg(dMsg, "바뀐 내용이 없어요."); return; }
+      xs.disabled = true;
+      updatePlan(p.id, { car: car, target: tg, reviewedAt: null }).then(function () { showMsg(dMsg, "차종·목표량을 고쳤어요. 판정이 다시 계산됐어요."); })
+        .catch(function (e) { xs.disabled = false; showMsg(dMsg, writeErr(e), true); });
+    });
+    var ro = document.getElementById("reopen");
+    if (ro) ro.addEventListener("click", function () {
+      updatePlan(p.id, { reviewedAt: null }).catch(function (e) { showMsg(dMsg, writeErr(e), true); });
+    });
+    var ab = document.getElementById("fApproveBtn");
+    if (ab) ab.addEventListener("click", function () {
+      var v = document.getElementById("fApprove").value;
+      if (!v) { showMsg(dMsg, "승인일을 골라 주세요.", true); return; }
+      ab.disabled = true;
+      updatePlan(p.id, { approvedAt: v }).then(function () { showMsg(dMsg, "승인일을 기록했어요."); })
+        .catch(function (e) { ab.disabled = false; showMsg(dMsg, writeErr(e), true); });
+    });
+    var rv = document.getElementById("fReview");
+    if (rv) rv.addEventListener("click", function () {
+      var cause = document.getElementById("fCause").value, at = document.getElementById("fRevDate").value, memo = document.getElementById("fRevMemo").value.trim();
+      if (!at) { showMsg(dMsg, "재검토한 날을 골라 주세요.", true); return; }
+      rv.disabled = true;
+      var next = reviewsOf(p).concat([{ at: at, cause: cause, memo: memo }]);
+      updatePlan(p.id, { reviews: next, reviewCount: next.length, reviewCauses: next.map(function (r) { return r.cause; }) })
+        .then(function () { showMsg(dMsg, "재검토 1건을 기록했어요. KPI ②에 반영됐어요."); })
+        .catch(function (e) { rv.disabled = false; showMsg(dMsg, writeErr(e), true); });
+    });
+    box.querySelectorAll("button[data-rev]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var i = Number(b.dataset.rev), cur = reviewsOf(p);
+        if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "정말 취소"; return; }
+        var next = cur.filter(function (_, j) { return j !== i; });
+        b.disabled = true;
+        updatePlan(p.id, { reviews: next, reviewCount: next.length, reviewCauses: next.map(function (r) { return r.cause; }) })
+          .then(function () { showMsg(dMsg, "재검토 기록 1건을 취소했어요."); })
+          .catch(function (e) { b.disabled = false; showMsg(dMsg, writeErr(e), true); });
+      });
+    });
+  }
+
+  // ---------- 화면 1 ----------
+  function fillPlanSelect() {
+    var sel = document.getElementById("ePlan");
+    var cur = sel.value || state.selected || "";
+    var opts = state.plans.slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; })
+      .map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.id) + " · " + esc(carOf(p)) + " " + fmtN(p.target) + "대 (" + fmtD(p.start) + "–" + fmtD(p.end) + ")</option>"; }).join("");
+    sel.innerHTML = '<option value="">계획을 고르세요</option>' + opts;
+    if (state.plans.some(function (p) { return p.id === cur; })) sel.value = cur;
+    updatePlanInfo();
+  }
+  function fillDept() {
+    var sel = document.getElementById("eDept");
+    sel.innerHTML = DEPTS.map(function (d) { return '<option value="' + d.key + '">' + d.name + "</option>"; }).join("");
+    fillItems();
+  }
+  function fillItems() {
+    var dept = document.getElementById("eDept").value;
+    var sel = document.getElementById("eItem");
+    var groups = [], by = {};
+    (ITEMS[dept] || []).forEach(function (it) { if (!by[it.group]) { by[it.group] = []; groups.push(it.group); } by[it.group].push(it); });
+    sel.innerHTML = groups.map(function (g) {
+      return '<optgroup label="' + esc(g) + '">' + by[g].map(function (it) {
+        return '<option value="' + it.key + '">' + esc(it.name) + (it.need ? " · CAPA 필수" : it.opt != null ? " · CAPA 계산" : " · 참고") + "</option>";
+      }).join("") + "</optgroup>";
+    }).join("");
+    fillUnit();
+  }
+  function fillUnit() {
+    var d = itemDef(document.getElementById("eDept").value, document.getElementById("eItem").value);
+    document.getElementById("eUnit").value = d ? d.unit : "";
+  }
+  function updatePlanInfo() {
+    var id = document.getElementById("ePlan").value;
+    var pc = state.plans.find(function (x) { return x.id === id; }); if (pc && pc.car) document.getElementById("eCar").value = pc.car;
+    var info = document.getElementById("ePlanInfo");
+    var p = state.plans.find(function (x) { return x.id === id; });
+    info.textContent = p ? ("차종 " + carOf(p) + " · 대상 기간 " + fmtD(p.start) + "–" + fmtD(p.end) + " · 목표량 " + fmtN(p.target) + "대 · 입력 마감 " + fmtDT(p.deadline)) : "생산관리팀이 등록한 계획만 목록에 나옵니다.";
+    renderEntryList();
+  }
+  function renderEntryList() {
+    var id = document.getElementById("ePlan").value;
+    var t = document.getElementById("eTable"), dd = document.getElementById("eDepts");
+    var p = state.plans.find(function (x) { return x.id === id; });
+    if (!p) { dd.innerHTML = ""; t.innerHTML = '<tr><td class="empty">계획을 고르면 그 계획에 들어온 자료가 보여요.</td></tr>'; return; }
+    var a = analyze(p);
+    dd.innerHTML = DEPTS.map(function (d, i) { var miss = ITEMS[d.key].filter(function (it) { return it.need && latest(a.list, d.key, it.key) == null; }).length; return '<div class="dept ' + (a.submitted[i] ? "in" : "out") + '"><b>' + d.name + '</b><span class="pill ' + (a.submitted[i] && !miss ? "ok" : "wait") + '">' + (!a.submitted[i] ? "미제출" : miss ? "필수 " + miss + "개 남음" : "제출") + "</span></div>"; }).join("");
+    var rows = a.list.slice().sort(function (x, y) { return x.recordedAt < y.recordedAt ? 1 : -1; }).map(function (e) {
+      return "<tr><td>" + deptName(e.dept) + "</td><td>" + esc(e.itemName) + '</td><td class="n">' + fmtN(e.value) + " " + esc(e.unit) + "</td><td>" + esc(e.by) + "</td><td>" + fmtDT(e.recordedAt) + "</td></tr>";
+    }).join("");
+    t.innerHTML = rows ? '<thead><tr><th>부서</th><th>항목</th><th class="n">값</th><th>입력자</th><th>기록 시각</th></tr></thead><tbody>' + rows + "</tbody>" : '<tr><td class="empty">아직 들어온 자료가 없어요.</td></tr>';
+  }
+
+  // ---------- 시트 ----------
+  function clipCell(html) {
+    if (!html) return "";
+    var plain = html.replace(/<br>/g, " ").replace(/&[a-z#0-9]+;/g, " ");
+    if (plain.length <= 40) return html;
+    return '<div class="clip" title="눌러서 전체 보기">' + html + '</div><span class="clip-more">전체 보기 ▾</span>';
+  }
+  function dayOf(iso) {
+    if (!iso) return ""; var d = new Date(iso); if (isNaN(d)) return String(iso).slice(0, 10);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function dtStr(iso) { if (!iso) return ""; var d = new Date(iso); if (isNaN(d)) return String(iso); return dayOf(iso) + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  function rng(prefix) { return { from: document.getElementById(prefix + "From").value, to: document.getElementById(prefix + "To").value }; }
+  function plansInRange() {
+    var r = rng("sp");
+    return state.plans.filter(function (p) { return (!r.from || (p.end || p.start) >= r.from) && (!r.to || p.start <= r.to); })
+      .sort(function (a, b) { return a.id < b.id ? -1 : 1; });
+  }
+  function entriesInRange() {
+    var r = rng("se");
+    return state.entries.filter(function (e) { var d = dayOf(e.recordedAt); return (!r.from || d >= r.from) && (!r.to || d <= r.to); })
+      .sort(function (a, b) { return a.recordedAt < b.recordedAt ? -1 : 1; });
+  }
+  function renderSheets() {
+    var sp = document.getElementById("sheetPlans");
+    var plist = plansInRange(), elist = entriesInRange();
+    document.getElementById("spCount").textContent = plist.length + "건 / 전체 " + state.plans.length + "건";
+    document.getElementById("seCount").textContent = elist.length + "건 / 전체 " + state.entries.length + "건";
+    var head = ["계획 번호", "차종", "대상 기간", "자료 요청 시각", "입력 마감", "목표량(대)", "예상 CAPA(대)", "부족 대수", "자동 판정", "확정 판정", "조정 메모", "CAPA 검토일", "승인일", "재검토 횟수", "재검토 기록 (날짜·원인·내용)"];
+    var rows = plist.map(function (p) {
+      var a = analyze(p);
+      var autoJ = p.reviewedAt ? p.autoJudge : a.judge;
+      var capa = p.reviewedAt ? p.expectedCapa : a.capa;
+      var short = p.reviewedAt ? p.shortage : a.shortage;
+      return "<tr><td class=\"mono\">" + esc(p.id) + "</td><td>" + esc(carOf(p)) + "</td><td>" + fmtD(p.start) + "–" + fmtD(p.end) + "</td><td>" + fmtDT(p.requestedAt) + "</td><td>" + fmtDT(p.deadline) + '</td><td class="n">' + fmtN(p.target) + '</td><td class="n">' + fmtN(capa) + '</td><td class="n">' + fmtN(short) + "</td><td>" + esc(autoJ) + "</td><td>" + esc(p.reviewedAt ? p.finalJudge : "") + "</td><td class=\"tdwrap\">" + clipCell(esc(p.memo || "")) + "</td><td>" + (p.reviewedAt ? fmtDT(p.reviewedAt) : "") + "</td><td>" + (p.approvedAt ? fmtD(p.approvedAt) : "") + '</td><td class="n">' + reviewsOf(p).length + "</td><td class=\"tdwrap\">" + clipCell(reviewsOf(p).map(function (r) { return esc((r.at ? fmtD(r.at) + " " : "") + r.cause + (r.memo ? ": " + r.memo : "")); }).join("<br>")) + "</td></tr>";
+    }).join("");
+    sp.innerHTML = "<thead><tr>" + head.map(function (h, i) { return "<th" + ([5, 6, 7, 13].indexOf(i) >= 0 ? ' class="n"' : "") + ">" + h + "</th>"; }).join("") + "</tr></thead><tbody>" + (rows || '<tr><td colspan="15" class="empty">아직 계획이 없어요.</td></tr>') + "</tbody>";
+
+    var se = document.getElementById("sheetEntries");
+    var er = elist.map(function (e) {
+      return '<tr><td class="mono">' + esc(e.planId) + "</td><td>" + deptName(e.dept) + "</td><td>" + esc(e.car) + "</td><td>" + esc(e.itemName) + '</td><td class="n">' + fmtN(e.value) + "</td><td>" + esc(e.unit) + "</td><td>" + esc(e.by) + "</td><td>" + fmtDT(e.recordedAt) + "</td></tr>";
+    }).join("");
+    se.innerHTML = "<thead><tr><th>계획 번호</th><th>부서</th><th>차종</th><th>입력 항목</th><th class=\"n\">값</th><th>단위</th><th>입력자</th><th>기록 시각</th></tr></thead><tbody>" + (er || '<tr><td colspan="8" class="empty">아직 자료가 없어요.</td></tr>') + "</tbody>";
+  }
+
+  function render() {
+    if (!state.selected && state.plans.length) {
+      var open = state.plans.filter(function (p) { return !p.approvedAt; }).sort(function (a, b) { return a.id < b.id ? -1 : 1; });
+      state.selected = (open[0] || state.plans[0]).id;
+    }
+    renderKpis(); renderPlanTable(); renderDetail(); fillPlanSelect(); renderSheets();
+  }
+
+  // ---------- 이벤트 ----------
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll(".tab").forEach(function (x) { x.setAttribute("aria-selected", String(x === b)); });
+      document.querySelectorAll(".view").forEach(function (v) { v.hidden = v.id !== "view-" + b.dataset.view; });
+    });
+  });
+  document.getElementById("planTable").addEventListener("click", function (ev) {
+    var tr = ev.target.closest("tr[data-id]"); if (!tr) return;
+    state.selected = tr.dataset.id; renderPlanTable(); renderDetail();
+  });
+  document.getElementById("planTable").addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter") return; var tr = ev.target.closest("tr[data-id]"); if (!tr) return;
+    state.selected = tr.dataset.id; renderPlanTable(); renderDetail();
+  });
+  document.getElementById("ePlan").addEventListener("change", updatePlanInfo);
+  document.getElementById("eDept").addEventListener("change", fillItems);
+  document.getElementById("eItem").addEventListener("change", fillUnit);
+
+  document.getElementById("planForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var msg = document.getElementById("pMsg");
+    var s = document.getElementById("pStart").value, e = document.getElementById("pEnd").value;
+    var car = document.getElementById("pCar").value.trim(), t = Number(document.getElementById("pTarget").value), dl = document.getElementById("pDeadline").value;
+    if (!s || !e || !car || !t || !dl) { showMsg(msg, "대상 기간, 차종, 목표량, 입력 마감을 모두 넣어 주세요.", true); return; }
+    if (e < s) { showMsg(msg, "대상 기간 끝이 시작보다 빨라요. 날짜를 확인해 주세요.", true); return; }
+    var prefix = "P-" + s.slice(2, 4) + s.slice(5, 7) + "-";
+    var n = state.plans.filter(function (p) { return p.id.indexOf(prefix) === 0; }).length + 1;
+    var id = prefix + String(n).padStart(2, "0");
+    while (state.plans.some(function (p) { return p.id === id; })) { n++; id = prefix + String(n).padStart(2, "0"); }
+    var plan = { id: id, car: car, start: s, end: e, target: t, requestedAt: new Date().toISOString(), deadline: new Date(dl).toISOString(), reviewCount: 0, reviewCauses: [], reviews: [] };
+    var btn = document.getElementById("pSave"); btn.disabled = true;
+    savePlan(plan).then(function () {
+      state.selected = id; btn.disabled = false;
+      document.getElementById("planForm").reset();
+      showMsg(msg, id + " (" + car + " " + fmtN(t) + "대) 계획을 등록했어요. 네 부서 화면 1의 계획 번호 목록에 바로 나와요.");
+      render();
+    }).catch(function (err) { btn.disabled = false; showMsg(msg, writeErr(err), true); });
+  });
+
+  document.getElementById("entryForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var msg = document.getElementById("eMsg");
+    var planId = document.getElementById("ePlan").value;
+    var dept = document.getElementById("eDept").value, item = document.getElementById("eItem").value;
+    var vRaw = document.getElementById("eValue").value, by = document.getElementById("eBy").value.trim();
+    if (!planId) { showMsg(msg, "계획 번호를 골라 주세요.", true); return; }
+    if (vRaw === "" || isNaN(Number(vRaw))) { showMsg(msg, "값에 숫자를 넣어 주세요.", true); return; }
+    if (!by) { showMsg(msg, "입력자를 넣어 주세요.", true); return; }
+    var d = itemDef(dept, item);
+    if (d.unit === "%" && (Number(vRaw) < 0 || Number(vRaw) > 100)) { showMsg(msg, d.name + "은(는) 0~100 사이 숫자로 넣어 주세요.", true); return; }
+    if (/^ct_|perCar/.test(item) && Number(vRaw) <= 0) { showMsg(msg, d.name + "은(는) 0보다 큰 숫자로 넣어 주세요.", true); return; }
+    var entry = { id: newId("e"), planId: planId, dept: dept, item: item, itemName: d.name, value: Number(vRaw), unit: d.unit, car: document.getElementById("eCar").value.trim(), by: by, recordedAt: new Date().toISOString() };
+    var btn = document.getElementById("eSave"); btn.disabled = true;
+    saveEntry(entry).then(function () {
+      btn.disabled = false; document.getElementById("eValue").value = "";
+      showMsg(msg, "저장했어요. 부서입력 탭 맨 아래에 새 행이 생겼어요.");
+      renderEntryList();
+    }).catch(function (err) { btn.disabled = false; showMsg(msg, writeErr(err), true); });
+  });
+
+  // ---------- 엑셀 시트 첨부 ----------
+  var pending = null;
+  function cs(v) { return v == null ? "" : String(v).trim(); }
+  function norm(t) { return cs(t).replace(/[\s·.\-_]/g, ""); }
+  function parseSheetRows(rows) {
+    var meta = {}, hdr = -1;
+    rows.forEach(function (r, i) {
+      var k = cs(r[0]);
+      if (["계획 번호", "부서", "입력자", "차종"].indexOf(k) >= 0 && !(k in meta)) meta[k] = cs(r[1]);
+      if (hdr < 0 && r.some(function (c) { return cs(c) === "항목 코드"; })) hdr = i;
+    });
+    if (hdr < 0) throw new Error("'항목 코드' 머리글을 찾지 못했어요. 부서별 입력 시트 양식을 그대로 써 주세요.");
+    var H = rows[hdr].map(cs), ci = H.indexOf("항목 코드"), vi = H.indexOf("값");
+    if (vi < 0) throw new Error("'값' 열을 찾지 못했어요. 머리글 이름을 바꾸지 말아 주세요.");
+    var dept = null;
+    if (meta["부서"]) DEPTS.forEach(function (d) { if (norm(d.name) === norm(meta["부서"]) || d.key === meta["부서"]) dept = d.key; });
+    if (!dept) dept = document.getElementById("eDept").value;
+    var plan = meta["계획 번호"] || document.getElementById("ePlan").value;
+    if (!plan) throw new Error("계획 번호가 없어요. 시트에 적거나 아래 계획 번호 칸에서 먼저 골라 주세요.");
+    if (!state.plans.some(function (p) { return p.id === plan; })) throw new Error(plan + " 계획을 찾지 못했어요. 생산관리팀이 화면 2에서 등록한 번호인지 확인해 주세요.");
+    var by = meta["입력자"] || document.getElementById("eBy").value.trim();
+    if (!by) throw new Error("입력자가 없어요. 시트의 입력자 칸이나 아래 입력자 칸을 채워 주세요.");
+    var out = [];
+    rows.slice(hdr + 1).forEach(function (r) {
+      var code = cs(r[ci]); if (!/^[A-Za-z_]+$/.test(code)) return;
+      var def = itemDef(dept, code), raw = cs(r[vi]);
+      var row = { code: code, name: def ? def.name : cs(r[ci + 2]) || code, unit: def ? def.unit : "", raw: raw, ok: false, reason: "" };
+      var num = Number(raw.replace(/,/g, ""));
+      if (!def) row.reason = deptName(dept) + " 항목이 아니라서 건너뜀";
+      else if (raw === "") row.reason = "빈칸이라 건너뜀";
+      else if (isNaN(num)) row.reason = "숫자가 아니라서 건너뜀";
+      else if (def.unit === "%" && (num < 0 || num > 100)) row.reason = "0~100 범위를 벗어나 건너뜀";
+      else if ((/^ct_/.test(code) || code === "perCar") && num <= 0) row.reason = "0보다 커야 해서 건너뜀";
+      else if (num < 0) row.reason = "음수라서 건너뜀";
+      else { row.ok = true; row.value = num; }
+      out.push(row);
+    });
+    var pObj = state.plans.find(function (p) { return p.id === plan; });
+    var warn = (pObj && pObj.car && meta["차종"] && norm(meta["차종"]) !== norm(pObj.car)) ? "시트의 차종(" + meta["차종"] + ")이 계획의 차종(" + pObj.car + ")과 달라요. 계획 번호가 맞는지 확인하세요." : "";
+    return { plan: plan, dept: dept, by: by, car: (pObj && pObj.car) || meta["차종"] || document.getElementById("eCar").value.trim(), warn: warn, rows: out };
+  }
+  function renderPending() {
+    var box = document.getElementById("uPreview");
+    if (!pending) { box.innerHTML = ""; return; }
+    var okRows = pending.rows.filter(function (r) { return r.ok; });
+    var needs = ITEMS[pending.dept].filter(function (it) { return it.need; });
+    var plan = state.plans.find(function (p) { return p.id === pending.plan; });
+    var have = needs.filter(function (it) { return okRows.some(function (r) { return r.code === it.key; }) || (plan && latest(entriesOf(plan.id), pending.dept, it.key) != null); });
+    box.innerHTML = '<div class="planinfo">계획 <b class="mono">' + esc(pending.plan) + "</b> · 부서 <b>" + deptName(pending.dept) + "</b> · 입력자 <b>" + esc(pending.by) + "</b>" + (pending.car ? " · 차종 " + esc(pending.car) : "") +
+      " · 등록할 값 <b>" + okRows.length + "개</b> · CAPA 필수 " + have.length + "/" + needs.length + " 채워짐</div>" +
+      (pending.warn ? '<p class="msg err">' + esc(pending.warn) + "</p>" : "") +
+      '<div class="tablewrap scroll"><table><thead><tr><th>항목</th><th class="n">값</th><th>단위</th><th>상태</th></tr></thead><tbody>' +
+      pending.rows.map(function (r) { return "<tr><td>" + esc(r.name) + '</td><td class="n">' + esc(r.raw || "–") + "</td><td>" + esc(r.unit) + '</td><td><span class="pill ' + (r.ok ? "ok" : "wait") + '">' + (r.ok ? "등록" : esc(r.reason)) + "</span></td></tr>"; }).join("") +
+      "</tbody></table></div>" +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="uGo"' + (okRows.length && state.canWrite ? "" : " disabled") + ">" + okRows.length + "개 값 등록</button>" +
+      '<button class="secondary" type="button" id="uCancel">취소</button></div>';
+    document.getElementById("uCancel").addEventListener("click", function () { pending = null; document.getElementById("uFile").value = ""; renderPending(); });
+    document.getElementById("uGo").addEventListener("click", function () {
+      var btn = this, msg = document.getElementById("uMsg"), job = pending, now = new Date().toISOString();
+      btn.disabled = true;
+      var list = job.rows.filter(function (r) { return r.ok; });
+      list.reduce(function (pr, r) {
+        return pr.then(function () {
+          return saveEntry({ id: newId("e"), planId: job.plan, dept: job.dept, item: r.code, itemName: r.name, value: r.value, unit: r.unit, car: job.car, by: job.by, recordedAt: now });
+        });
+      }, Promise.resolve()).then(function () {
+        pending = null; document.getElementById("uFile").value = ""; renderPending();
+        document.getElementById("ePlan").value = job.plan; updatePlanInfo();
+        showMsg(msg, deptName(job.dept) + " 값 " + list.length + "개를 " + job.plan + " 계획에 등록했어요. 부서입력 탭에 한 줄씩 쌓였어요.");
+      }).catch(function (e) { btn.disabled = false; showMsg(msg, writeErr(e), true); });
+    });
+  }
+  document.getElementById("uFile").addEventListener("change", function (ev) {
+    var f = ev.target.files && ev.target.files[0], msg = document.getElementById("uMsg");
+    msg.hidden = true; pending = null; renderPending();
+    if (!f) return;
+    if (!window.XLSX) { showMsg(msg, "엑셀 읽기 도구를 불러오지 못했어요. 페이지를 다시 연 뒤 시도해 주세요.", true); return; }
+    f.arrayBuffer().then(function (buf) {
+      var wb = XLSX.read(buf, { type: "array" });
+      var sh = wb.Sheets["입력"] || wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(sh, { header: 1, raw: true, defval: "" });
+      pending = parseSheetRows(rows); renderPending();
+    }).catch(function (e) { showMsg(msg, (e && e.message) || "파일을 읽지 못했어요. 부서별 입력 시트 양식인지 확인해 주세요.", true); });
+  });
+
+  // ---------- 엑셀 저장 ----------
+  function exportPlansAoa(list) {
+    var head = ["계획 번호", "차종", "대상 기간 시작", "대상 기간 끝", "자료 요청 시각", "입력 마감", "목표량(대)", "예상 CAPA(대)", "부족 대수", "한계", "자동 판정", "확정 판정", "조정 메모", "CAPA 검토일", "승인일", "재검토 횟수", "재검토 기록", "취합 리드타임(일)"];
+    return [head].concat(list.map(function (p) {
+      var a = analyze(p);
+      var capa = p.reviewedAt ? p.expectedCapa : a.capa, short = p.reviewedAt ? p.shortage : a.shortage;
+      return [p.id, p.car || "", p.start || "", p.end || "", dtStr(p.requestedAt), dtStr(p.deadline), Number(p.target),
+        capa == null ? "" : capa, short == null ? "" : short, a.limit || "", p.reviewedAt ? p.autoJudge : a.judge, p.reviewedAt ? p.finalJudge : "",
+        p.memo || "", p.reviewedAt ? dtStr(p.reviewedAt) : "", p.approvedAt || "", reviewsOf(p).length,
+        reviewsOf(p).map(function (r) { return (r.at ? r.at + " " : "") + r.cause + (r.memo ? ": " + r.memo : ""); }).join(" / "),
+        a.lead == null ? "" : Math.round(a.lead * 10) / 10];
+    }));
+  }
+  function exportEntriesAoa(list) {
+    var head = ["계획 번호", "계획 차종", "부서", "입력 항목", "항목 코드", "값", "단위", "차종", "입력자", "기록 시각"];
+    return [head].concat(list.map(function (e) {
+      var p = state.plans.find(function (x) { return x.id === e.planId; });
+      return [e.planId, p ? (p.car || "") : "", deptName(e.dept), e.itemName, e.item, Number(e.value), e.unit, e.car || "", e.by, dtStr(e.recordedAt)];
+    }));
+  }
+  function saveXlsx(prefix, sheetName, aoa, count) {
+    var msg = document.getElementById(prefix + "Msg"), r = rng(prefix);
+    if (count === 0) { showMsg(msg, "이 기간에 해당하는 자료가 없어요. 기간을 바꿔 주세요.", true); return; }
+    if (!window.XLSX) { showMsg(msg, "엑셀 만들기 도구를 불러오지 못했어요. 페이지를 다시 연 뒤 시도해 주세요.", true); return; }
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = aoa[0].map(function (h, i) {
+      var w = String(h).length * 2 + 2; aoa.forEach(function (row) { w = Math.max(w, Math.min(50, String(row[i] == null ? "" : row[i]).length + 2)); }); return { wch: w };
+    });
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    var info = XLSX.utils.aoa_to_sheet([["항목", "값"], ["시트", sheetName], ["기간 시작", r.from || "처음부터"], ["기간 끝", r.to || "끝까지"], ["건수", count], ["저장 시각", dtStr(new Date().toISOString())], ["비고", "예상 CAPA 계산식은 가정입니다 (6조 시제품)"]]);
+    info["!cols"] = [{ wch: 12 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, info, "조건");
+    var buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    var name = sheetName + "_" + (r.from || "처음") + "_" + (r.to || "끝") + ".xlsx";
+    try {
+      var blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      var url = URL.createObjectURL(blob), link = document.createElement("a");
+      link.href = url; link.download = name; document.body.appendChild(link); link.click();
+      setTimeout(function () { URL.revokeObjectURL(url); link.remove(); }, 1000);
+      showMsg(msg, name + " 파일을 내려받았어요 (" + count + "건).");
+    } catch (e) { showMsg(msg, "파일을 만들지 못했어요. 다른 브라우저(크롬·엣지)에서 다시 시도해 주세요.", true); }
+  }
+  document.getElementById("spXlsx").addEventListener("click", function () { var l = plansInRange(); saveXlsx("sp", "계획목록", exportPlansAoa(l), l.length); });
+  document.getElementById("seXlsx").addEventListener("click", function () { var l = entriesInRange(); saveXlsx("se", "부서입력", exportEntriesAoa(l), l.length); });
+  ["spFrom", "spTo", "seFrom", "seTo"].forEach(function (id) {
+    document.getElementById(id).addEventListener("change", function () {
+      var pre = id.slice(0, 2), f = document.getElementById(pre + "From"), t = document.getElementById(pre + "To");
+      if (f.value && t.value && f.value > t.value) { showMsg(document.getElementById(pre + "Msg"), "시작일이 끝일보다 늦어요. 날짜를 확인해 주세요.", true); }
+      else document.getElementById(pre + "Msg").hidden = true;
+      renderSheets();
+    });
+  });
+  document.querySelectorAll("button[data-reset]").forEach(function (b) {
+    b.addEventListener("click", function () { var p = b.dataset.reset; document.getElementById(p + "From").value = ""; document.getElementById(p + "To").value = ""; document.getElementById(p + "Msg").hidden = true; renderSheets(); });
+  });
+
+  document.getElementById("seedBtn").addEventListener("click", function () {
+    var b = this; b.disabled = true;
+    var sd = previewSeed();
+    var rows = function (list) { return list.map(function (o) { return { id: o.id, data: o, updated_at: new Date().toISOString() }; }); };
+    sb.from("plans").upsert(rows(sd.plans)).then(function (r) { if (r.error) throw r.error; return sb.from("entries").upsert(rows(sd.entries)); })
+      .then(function (r) { if (r.error) throw r.error; document.getElementById("seedBox").hidden = true; return refresh(); })
+      .catch(function (e) { b.disabled = false; alertBox(writeErr(e)); });
+  });
+  function alertBox(t) { var sb2 = document.getElementById("seedBox"); sb2.textContent = t; sb2.hidden = false; }
+
+  // ---------- 접기·펼치기 ----------
+  var foldState = {};
+  function wrapFold(el, title, key, isPanel) {
+    var d = document.createElement("details");
+    d.className = el.className + " fold";
+    if (el.id) { d.id = el.id; el.removeAttribute("id"); }
+    if (el.getAttribute("style")) d.setAttribute("style", el.getAttribute("style"));
+    d.dataset.fold = key;
+    var open = foldState[key] !== false;
+    if (open) d.open = true;
+    var sm = document.createElement("summary");
+    sm.appendChild(title);
+    var body = document.createElement("div"); body.className = "foldbody";
+    while (el.firstChild) body.appendChild(el.firstChild);
+    d.appendChild(sm); d.appendChild(body);
+    d.addEventListener("toggle", function () { foldState[key] = d.open; });
+    el.parentNode.replaceChild(d, el);
+    return d;
+  }
+  function foldStatic() {
+    document.querySelectorAll(".view .panel").forEach(function (p) {
+      if (p.id === "detail") return;
+      var h = p.querySelector(":scope > h2"); if (!h) return;
+      wrapFold(p, h, "s:" + h.textContent, true);
+    });
+  }
+  function foldDetail(box) {
+    box.querySelectorAll(":scope .box").forEach(function (b) {
+      if (b.tagName === "DETAILS") return;
+      var h = b.querySelector(":scope > h3"); if (!h) return;
+      wrapFold(b, h, "d:" + h.textContent.replace(/[0-9,]+대/g, ""), false);
+    });
+    var c = box.querySelector(":scope > .calc");
+    if (c) {
+      var wrap = document.createElement("div"); wrap.className = "box";
+      c.parentNode.insertBefore(wrap, c); wrap.appendChild(c);
+      var h = document.createElement("h3"); h.textContent = "예상 CAPA 계산 내역 (공정별 · 부품)";
+      wrapFold(wrap, h, "d:calc", false);
+    }
+  }
+  function setAllFolds(open) {
+    document.querySelectorAll("details.fold").forEach(function (d) { if (d.closest(".view") && !d.closest(".view").hidden) { d.open = open; foldState[d.dataset.fold] = open; } });
+  }
+  document.getElementById("foldAll").addEventListener("click", function () { setAllFolds(false); });
+  document.getElementById("openAll").addEventListener("click", function () { setAllFolds(true); });
+  foldState["s:새 계획 등록"] = false;
+  foldStatic();
+  document.getElementById("sheetPlans").addEventListener("click", function (ev) {
+    var td = ev.target.closest("td"); if (!td) return;
+    var c = td.querySelector(".clip"), m = td.querySelector(".clip-more"); if (!c) return;
+    c.classList.toggle("open"); if (m) m.textContent = c.classList.contains("open") ? "접기 ▴" : "전체 보기 ▾";
+  });
+
+  // ---------- 시작 ----------
+  fillDept();
+  var badge = document.getElementById("modeBadge");
+  function startPreview(reason) {
+    if (state.mode === "preview") return;
+    state.mode = "preview";
+    var s = previewSeed(); state.plans = s.plans; state.entries = s.entries;
+    badge.textContent = "미리보기 · 저장되지 않음" + (reason ? " (" + reason + ")" : "");
+    badge.className = "badge preview";
+    render();
+  }
+  var cfg = window.CAPA_CONFIG || {};
+  if (cfg.SUPABASE_URL && cfg.SUPABASE_KEY && window.supabase && window.supabase.createClient) {
+    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY);
+    state.mode = "live";
+    render();
+    refresh().then(function () {
+      if (!state.plans.length) document.getElementById("seedBox").hidden = false;
+    }).catch(function (e) {
+      badge.textContent = "공유 저장소(Supabase)에 연결하지 못했어요 · 설정을 확인하세요"; badge.className = "badge preview"; badge.hidden = false;
+      console.error(e);
+    });
+    setInterval(function () { if (!document.hidden) refresh().catch(function () {}); }, 5000);
+  } else {
+    state.mode = "local";
+    var lp = null, le = null;
+    try { lp = JSON.parse(localStorage.getItem(LS_P) || "null"); le = JSON.parse(localStorage.getItem(LS_E) || "null"); } catch (e) {}
+    if (lp && le) { state.plans = lp; state.entries = le; }
+    else { var sd = previewSeed(); state.plans = sd.plans; state.entries = sd.entries; persistLocal(); }
+    if (cfg.SUPABASE_URL || cfg.SUPABASE_KEY) { badge.textContent = "Supabase 설정이 반쯤만 채워져 있어 브라우저 저장 모드로 열었어요"; badge.className = "badge preview"; badge.hidden = false; }
+    render();
+  }
+})();
+</script>
+</body>
+</html>
